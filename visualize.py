@@ -1,15 +1,21 @@
 from PyQt6.QtWidgets import QWidget, QApplication
-from PyQt6.QtGui import QPaintEvent, QPainter, QColorConstants, QColor
-from PyQt6.QtCore import QRect, QRectF, Qt, QSizeF
+from PyQt6.QtGui import QPaintEvent, QPainter, QColor, QPen
+from PyQt6.QtCore import QRect, QRectF, Qt, QSizeF, QPointF
+from PyQtPlus.QtGuiPlus import QColorTools
+from PyQtPlus.QtCorePlus import QInterpolationTools
 from sys import argv
 
-from typing import List
-from parse_data import Neighborhood, load_points
+from typing import List, Tuple
+from parse_data import Neighborhood, get_distances, load_points
 
-GRID_SIZE = 30
-RADIUS = 12.0
+GRID_SIZE = 45
+RADIUS = 20
 
 DARK_COLOR = QColor(0x404040)
+
+BEST_COLOR = QColor(20, 215, 90)
+MEDIUM_COLOR = QColor(120, 115, 0)
+WORST_COLOR = QColor(100, 5, 0)
 
 class MainWindow(QWidget):
     neighborhoods: List[Neighborhood]
@@ -19,6 +25,11 @@ class MainWindow(QWidget):
         self.neighborhoods = load_points()
         self.max_x = max([nh.x for nh in self.neighborhoods])
         self.max_y = max([nh.y for nh in self.neighborhoods])
+
+        self.non_neighborhoods = get_distances(self.neighborhoods)
+
+        s = sorted(self.non_neighborhoods, key=lambda i: i[2])
+        print(s)
 
     def getTotalBoardRect(self):
         return QSizeF(
@@ -36,9 +47,12 @@ class MainWindow(QWidget):
             painter: QPainter
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-            for x in range(self.max_x + 1):
-                for y in range(self.max_y + 1):
-                    self.drawEmptySpace(x, y, painter)
+            # for x in range(self.max_x + 1):
+            #     for y in range(self.max_y + 1):
+            #         self.drawEmptySpace(x, y, painter)
+
+            for em in self.non_neighborhoods:
+                self.drawInactiveSpace(em, painter)
 
             for nh in self.neighborhoods:
                 self.drawNeighborhoodSpace(nh, painter)
@@ -67,10 +81,27 @@ class MainWindow(QWidget):
         painter.setPen(Qt.GlobalColor.white)
         painter.drawText(r, Qt.AlignmentFlag.AlignCenter, f'{nh.p}')
 
+    def drawInactiveSpace(self, space: Tuple[int, int, float], painter: QPainter):
+        r = self.getRectForSpace(space[0], space[1])
+        p = space[2]
+
+        if p >= 0.5:
+            remapped_p = QInterpolationTools.remap(0.5, 1.0, 0.0, 1.0, p)
+            color = QColorTools.lerp(MEDIUM_COLOR, WORST_COLOR, remapped_p)
+        else:
+            remapped_p = QInterpolationTools.remap(0.0, 0.5, 0.0, 1.0, p)
+            color = QColorTools.lerp(BEST_COLOR, MEDIUM_COLOR, remapped_p)
+
+        painter.setBrush(color)
+        painter.setPen(Qt.GlobalColor.transparent)
+        painter.drawEllipse(r)
+        painter.setPen(Qt.GlobalColor.white)
+        painter.drawText(r, Qt.AlignmentFlag.AlignCenter, f'{p:.2f}')
+        
     def drawActiveSpace(self, x: int, y: int, painter: QPainter):
         r = self.getRectForSpace(x, y)
-        painter.setBrush(Qt.GlobalColor.red)
-        painter.setPen(Qt.GlobalColor.darkRed)
+        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.setPen(QPen(Qt.GlobalColor.red, 2.0))
         painter.drawEllipse(r)
 
 
