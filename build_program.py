@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from pulp import const, LpProblem, LpMinimize, LpVariable, lpSum
+from pulp import const, LpProblem, LpMinimize, LpVariable, lpSum, PULP_CBC_CMD
 from parse_data import load_points, Neighborhood
 
 neighborhoods = load_points()
@@ -31,9 +31,10 @@ def solve_one_facility():
         prob += -nh.dx - nh.dy + 1 <= 0, f'Neighborhood_{i}_Prevent_Build'
 
     prob.writeLP(f'OneFacility.lp')
-    prob.solve()
+    prob.solve(PULP_CBC_CMD(msg=False))
 
-    print(f'Optimal location is ({u.varValue}, {v.varValue})')
+    f = (int(u.varValue), int(v.varValue))
+    print(f'For one facility, optimal location is {f}')
 
 def solve_two_facility():
     prob = LpProblem('Double_Facility_Problem', LpMinimize)
@@ -80,11 +81,12 @@ def solve_two_facility():
         prob += -nh.dx - nh.dy + 1 <= 0, f'N{i}_F2_Prevent_Build'
 
     prob.writeLP('TwoFacility.lp')
-    prob.solve()
+    prob.solve(PULP_CBC_CMD(msg=False))
 
-    f1 = (u1.varValue, v1.varValue)
-    f2 = (u2.varValue, v2.varValue)
+    f1 = (int(u1.varValue), int(v1.varValue))
+    f2 = (int(u2.varValue), int(v2.varValue))
 
-    print(f'Optimal locations are {f1=}, {f2=}')
+    print(f'For two facilities, optimal locations are {f1} and {f2}')
 
+solve_one_facility()
 solve_two_facility()
