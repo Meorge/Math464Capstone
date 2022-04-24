@@ -36,7 +36,7 @@ def solve_one_facility():
     print(f'Optimal location is ({u.varValue}, {v.varValue})')
 
 def solve_two_facility():
-    prob = LpProblem('Double_Facility_Problem', LpMinimize)
+    prob: LpProblem = LpProblem('Double_Facility_Problem', LpMinimize)
 
     # Create decision variables, again.
     # This time, because we have two warehouses, we need (u1, v1) and (u2, v2).
@@ -45,46 +45,63 @@ def solve_two_facility():
     u2 = LpVariable('u_2', lowBound=0, cat=const.LpInteger)
     v2 = LpVariable('v_2', lowBound=0, cat=const.LpInteger)
 
-    # We need a copy of the neighborhoods for facility 1 and facility 2.
-    neighborhoods_1 = neighborhoods.copy()
-    neighborhoods_2 = neighborhoods.copy()
+    # Variables from neighborhood k to facility 1
+    d_xk_to_f1: List[LpVariable] = []
+    d_yk_to_f1: List[LpVariable] = []
+    d_k_to_f1: List[LpVariable] = []
 
-    # Create the slack variables for the first facility.
-    for i, nh in enumerate(neighborhoods_1):
-        nh.dx = LpVariable(f'd_x_1_{i}', cat=const.LpInteger)
-        nh.dy = LpVariable(f'd_y_1_{i}', cat=const.LpInteger)
+    # Variables from neighborhood k to facility 2
+    d_xk_to_f2: List[LpVariable] = []
+    d_yk_to_f2: List[LpVariable] = []
+    d_k_to_f2: List[LpVariable] = []
 
-    # Create the slack variables for the second facility.
-    for i, nh in enumerate(neighborhoods_2):
-        nh.dx = LpVariable(f'd_x_2_{i}', cat=const.LpInteger)
-        nh.dy = LpVariable(f'd_y_2_{i}', cat=const.LpInteger)
+    # Variable for the distance from neighborhood k to the nearest facility
+    delta_k: List[LpVariable] = []
 
-    # Create the objective function.
-    neighborhoods_union = neighborhoods_1 + neighborhoods_2
-    prob += lpSum([nh.p * nh.dx + nh.p * nh.dy for nh in neighborhoods_union]), 'Total_Walking_Distance'
+    for i in range(len(neighborhoods)):
+        d_xk_to_f1.append(LpVariable(f'd_x{i}→1', cat=const.LpInteger))
+        d_yk_to_f1.append(LpVariable(f'd_y{i}→1', cat=const.LpInteger))
+        d_xk_to_f2.append(LpVariable(f'd_x{i}→2', cat=const.LpInteger))
+        d_yk_to_f2.append(LpVariable(f'd_y{i}→2', cat=const.LpInteger))
 
-    # Add the constraints for the first facility.
-    for i, nh in enumerate(neighborhoods_1):
-        prob += nh.x - u1 - nh.dx <= 0, f'N{i}_F1_X_UB'
-        prob += -nh.x + u1 - nh.dx <= 0, f'N{i}_F1_X_LB'
-        prob += nh.y - v1 - nh.dy <= 0, f'N{i}_F1_Y_UB'
-        prob += -nh.y + v1 - nh.dy <= 0, f'N{i}_F1_Y_LB'
-        prob += -nh.dx - nh.dy + 1 <= 0, f'N{i}_F1_Prevent_Build'
+        d_k_to_f1.append(LpVariable(f'd_{i}→1', cat=const.LpInteger))
+        d_k_to_f2.append(LpVariable(f'd_{i}→2', cat=const.LpInteger))
 
-    # Add the constraints for the second facility.
-    for i, nh in enumerate(neighborhoods_2):
-        prob += nh.x - u2 - nh.dx <= 0, f'N{i}_F2_X_UB'
-        prob += -nh.x + u2 - nh.dx <= 0, f'N{i}_F2_X_LB'
-        prob += nh.y - v2 - nh.dx <= 0, f'N{i}_F2_Y_UB'
-        prob += -nh.y + v2 - nh.dx <= 0, f'N{i}_F2_Y_LB'
-        prob += -nh.dx - nh.dy + 1 <= 0, f'N{i}_F2_Prevent_Build'
+        delta_k.append(LpVariable(f'𝛿_{i}', cat=const.LpInteger))
+
+    # First, give objective function: sum of delta_k
+    prob += lpSum(delta_k), "Walking_Distance_To_Closest_Facility"
+
+    # Now, add the constraints for each neighborhood.
+    for k, nh in enumerate(neighborhoods):
+        prob += delta_k[k] >= d_k_to_f1[k]
+        prob += delta_k[k] >= d_k_to_f2[k]
+
+        prob += nh.x - u1 <= d_xk_to_f1[k]
+        prob += -(nh.x - u1) <= d_xk_to_f1[k]
+        prob += nh.y - v1 <= d_yk_to_f1[k]
+        prob += -(nh.y - v1) <= d_yk_to_f1[k]
+        prob += d_xk_to_f1[k] + d_yk_to_f1[k] >= 1
+        prob += nh.p * d_xk_to_f1[k] + nh.p * d_yk_to_f1[k] == d_k_to_f1[k]
+
+        prob += nh.x - u2 <= d_xk_to_f2[k]
+        prob += -(nh.x - u2) <= d_xk_to_f2[k]
+        prob += nh.y - v2 <= d_yk_to_f2[k]
+        prob += -(nh.y - v2) <= d_yk_to_f2[k]
+        prob += d_xk_to_f2[k] + d_yk_to_f2[k] >= 1
+        prob += nh.p * d_xk_to_f2[k] + nh.p * d_yk_to_f2[k] == d_k_to_f2[k]
+    
 
     prob.writeLP('TwoFacility.lp')
     prob.solve()
 
-    f1 = (u1.varValue, v1.varValue)
-    f2 = (u2.varValue, v2.varValue)
+    for (_, val) in prob.constraints.items():
+        print(val)
 
-    print(f'Optimal locations are {f1=}, {f2=}')
+    print(f'Optimal locations are ({u1.varValue}, {v1.varValue}) and ({u2.varValue}, {v2.varValue})')
 
+
+
+
+# solve_one_facility()
 solve_two_facility()
