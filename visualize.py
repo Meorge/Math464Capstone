@@ -57,7 +57,11 @@ class MainWindow(QWidget):
             for nh in self.neighborhoods:
                 self.drawNeighborhoodSpace(nh, painter)
 
-            self.drawActiveSpace(14, 9, painter)
+            # self.drawActiveSpace(14, 9, painter)
+
+            # For two facilities
+            self.drawActiveSpace(6, 9, painter)
+            self.drawActiveSpace(16, 10, painter)
 
 
     def getRectForSpace(self, x: int, y: int):
